@@ -350,11 +350,13 @@ class BugBearVisitor(ast.NodeVisitor):
         self.check_for_b902(node)
         self.check_for_b006(node)
         self.check_for_b018(node)
+        self.check_for_b019(node)
         self.generic_visit(node)
 
     def visit_ClassDef(self, node):
         self.check_for_b903(node)
         self.check_for_b018(node)
+        self.check_for_b019(node)
         self.generic_visit(node)
 
     def visit_Try(self, node):
@@ -685,6 +687,20 @@ class BugBearVisitor(ast.NodeVisitor):
             ):
                 self.errors.append(B018(subnode.lineno, subnode.col_offset))
 
+    def check_for_b019(self, node):
+        if (
+            node.body
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.JoinedStr)
+            and ast.get_source_segment(
+                "".join(self.lines),
+                node.body[0].value,
+            ).startswith('f"""')
+        ):
+            self.errors.append(
+                B019(node.body[0].value.lineno, node.body[0].value.col_offset)
+            )
+
 
 @attr.s
 class NameFinder(ast.NodeVisitor):
@@ -884,6 +900,12 @@ B017 = Error(
 B018 = Error(
     message=(
         "B018 Found useless expression. Either assign it to a variable or remove it."
+    )
+)
+B019 = Error(
+    message=(
+        "B019 f-string used as docstring."
+        "This will be interpreted by python as a joined string rather than a docstring."
     )
 )
 B020 = Error(
