@@ -152,6 +152,10 @@ def float_minus_NaN_okay(value=float("-NaN")):
     pass
 
 
+def float_infinity_literal(value=float("1e999")):
+    pass
+
+
 # But don't allow standard floats
 def float_int_is_wrong(value=float(3)):
     pass

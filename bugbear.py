@@ -2,8 +2,8 @@ import ast
 import builtins
 import itertools
 import logging
+import math
 import re
-import sys
 from collections import namedtuple
 from contextlib import suppress
 from functools import lru_cache, partial
@@ -769,35 +769,25 @@ class FuntionDefDefaultsVisitor(ast.NodeVisitor):
         call_path = ".".join(compose_call_path(node.func))
         if call_path in B006.mutable_calls:
             self.errors.append(B006(node.lineno, node.col_offset))
-        elif call_path not in B008.immutable_calls | self.b008_extend_immutable_calls:
-            # Check if function call is actually a float infinity/NaN literal
-            if call_path == "float" and len(node.args) == 1:
-                float_arg = node.args[0]
-                if sys.version_info < (3, 8, 0):
-                    # NOTE: pre-3.8, string literals are represented with ast.Str
-                    if isinstance(float_arg, ast.Str):
-                        str_val = float_arg.s
-                    else:
-                        str_val = ""
-                else:
-                    # NOTE: post-3.8, string literals are represented with ast.Constant
-                    if isinstance(float_arg, ast.Constant):
-                        str_val = float_arg.value
-                        if not isinstance(str_val, str):
-                            str_val = ""
-                    else:
-                        str_val = ""
+            self.generic_visit(node)
+            return
 
-                # NOTE: regex derived from documentation at:
-                # https://docs.python.org/3/library/functions.html#float
-                inf_nan_regex = r"^[+-]?(inf|infinity|nan)$"
-                re_result = re.search(inf_nan_regex, str_val.lower())
-                is_float_literal = re_result is not None
+        if call_path in B008.immutable_calls | self.b008_extend_immutable_calls:
+            self.generic_visit(node)
+            return
+
+        # Check if function call is actually a float infinity/NaN literal
+        if call_path == "float" and len(node.args) == 1:
+            try:
+                value = float(ast.literal_eval(node.args[0]))
+            except Exception:
+                pass
             else:
-                is_float_literal = False
+                if math.isfinite(value):
+                    self.errors.append(B008(node.lineno, node.col_offset))
+        else:
+            self.errors.append(B008(node.lineno, node.col_offset))
 
-            if not is_float_literal:
-                self.errors.append(B008(node.lineno, node.col_offset))
         # Check for nested functions.
         self.generic_visit(node)
 
